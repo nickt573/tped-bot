@@ -10,8 +10,10 @@ init_db()
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 time = 3 * 24
-CHANNEL = 1428598017656619100
-ANNOUNCE = 1434239578457509958
+CHANNEL = 1428598017656619100 # general chat
+ECHANNEL = 1434310637936447488 # eboard general chat
+ANNOUNCE = 1434239578457509958 # announcement chat
+ME = 699427677383294986 # Nick T. user ID
 online = False
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
@@ -191,11 +193,26 @@ async def wipe(ctx):
     else:
         await ctx.send("Deletion cancelled.")
 
+async def send_to_channel(ctx, message, target_channel_id):
+    if ctx.guild is not None:
+        return
+    if ctx.author.id != ME:
+        return
+
+    channel = bot.get_channel(target_channel_id)
+    if channel is not None:
+        await channel.send(message)
+
+
 @bot.command()
-@commands.has_role("E-Board")
 async def say(ctx, *, message):
-    await ctx.message.delete()
-    await ctx.send(message)
+    await send_to_channel(ctx, message, CHANNEL)
+
+
+@bot.command()
+async def esay(ctx, *, message):
+    await send_to_channel(ctx, message, ECHANNEL)
+
 
 @bot.command()
 @commands.has_role("E-Board")
