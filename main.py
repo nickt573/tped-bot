@@ -11,6 +11,7 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 time = 3 * 24
 CHANNEL = 1428598017656619100
+ANNOUNCE = 1434239578457509958
 online = False
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
@@ -218,5 +219,13 @@ async def status(ctx):
         await ctx.send("Discussion is currently enabled")
     else:
         await ctx.send("Discussion is currently disabled")
+
+@bot.command()
+@commands.has_role("E-Board")
+async def announce(ctx, *, message):
+    channel = bot.get_channel(ANNOUNCE)
+    if channel:
+        await channel.send(message)
+
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
