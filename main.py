@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import os
 import asyncio
 from utils import init_db, add_entry, get_random, get_by_link, delete_entry, get_by_entry, delete_db
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 init_db()
 load_dotenv()
@@ -243,6 +245,34 @@ async def announce(ctx, *, message):
     channel = bot.get_channel(ANNOUNCE)
     if channel:
         await channel.send(message)
+
+import asyncio
+from datetime import datetime, timezone
+import discord
+
+@bot.command()
+@commands.has_role("E-Board")
+async def schedule(ctx, date: str, time: str, *, message):
+    # "2026-02-25 18:30 Hi" for example
+    try:
+        target_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        target_dt = target_dt.replace(tzinfo=ZoneInfo("America/New_York"))
+    except ValueError:
+        await ctx.send("Invalid format. Use: YYYY-MM-DD HH:MM")
+        return
+    now = datetime.now(timezone.utc)
+    delay = (target_dt - now).total_seconds()
+    if delay <= 0:
+        await ctx.send("That time is in the past.")
+        return
+    
+    await ctx.send("Event successfully scheduled")
+    await asyncio.sleep(delay)
+
+    channel = bot.get_channel(ECHANNEL)
+    if channel:
+        await channel.send(message)
+
 
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
