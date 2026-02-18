@@ -15,6 +15,7 @@ time = 3 * 24
 CHANNEL = 1428598017656619100 # general chat
 ECHANNEL = 1434310637936447488 # eboard general chat
 ANNOUNCE = 1434239578457509958 # announcement chat
+EANNOUNCE = 1434589025158824130 # eboard announcement chat
 ME = 699427677383294986 # Nick T. user ID
 online = False
 
@@ -269,7 +270,7 @@ async def schedule(ctx, date: str, time: str, *, message):
     await ctx.send("Event successfully scheduled")
     await asyncio.sleep(delay)
 
-    channel = bot.get_channel(ECHANNEL)
+    channel = bot.get_channel(EANNOUNCE)
     if channel:
         await channel.send(message)
 
