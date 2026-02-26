@@ -1,6 +1,18 @@
 import sqlite3
 DB_PATH = "entries.db"
 
+week2idx = {
+    "Monday": 0,
+    "Tuesday": 1,
+    "Wednesday": 2,
+    "Thursday": 3,
+    "Friday": 4,
+    "Saturday": 5,
+    "Sunday": 6,
+}
+
+idx2week = {idx: day for day, idx in week2idx.items()}
+
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""

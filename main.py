@@ -4,7 +4,7 @@ import logging
 from dotenv import load_dotenv
 import os
 import asyncio
-from utils import init_db, add_entry, get_random, get_by_link, delete_entry, get_by_entry, delete_db
+from utils import init_db, add_entry, get_random, get_by_link, delete_entry, get_by_entry, delete_db, idx2week, week2idx
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -18,6 +18,9 @@ ANNOUNCE = 1434239578457509958 # announcement chat
 EANNOUNCE = 1434589025158824130 # eboard announcement chat
 ME = 699427677383294986 # Nick T. user ID
 online = False
+task_day = 2
+task_hour = 17
+task_minute = 0
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
@@ -32,6 +35,8 @@ bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 async def on_ready():
     if not send.is_running():
         send.start()
+    if not task_scheduler.is_running():
+        task_scheduler.start()
 
 @bot.event
 async def on_member_join(member):
@@ -78,7 +83,7 @@ async def add(ctx, *, message):
 
 @bot.command()
 @commands.has_role("E-Board")
-async def get(ctx):
+async def pull(ctx):
     await ctx.message.delete()
     content = get_random()
     if content:
@@ -108,7 +113,7 @@ async def send():
 
 @bot.command()
 @commands.has_role("E-Board")
-async def set(ctx, *, message):
+async def set_interval(ctx, *, message):
     try:
         days = float(message)
     except ValueError:
@@ -123,8 +128,15 @@ async def set(ctx, *, message):
 @bot.command()
 @commands.has_role("E-Board")
 async def help(ctx):
+    global task_minute
+    global time
+    global task_hour
+    global task_day
+    minute_message = str(task_minute)
+    if task_minute < 10:
+        minute_message = "0" + minute_message
     await ctx.send(
-f'''I will randomly select an entry every {time / 24} day(s) to stimulate discussion. Please use !set to update this interval. Use !interval to see the currently set interval.
+f'''I will randomly select an entry every {time / 24} day(s) to stimulate discussion. Please use !set_interval to update this interval. Use !get_interval to see the currently set interval.
 
 Use !add [content], [category], [optional link] to add to the database.
     *Content*: The actual ride name, trivia fact, manufacturer, ride element, etc.
@@ -133,7 +145,9 @@ Use !add [content], [category], [optional link] to add to the database.
 
 Use !delete [content] to remove an entry if there is a duplicate for example. Spelling must be exact. Use !wipe to delete the entire database. This CANNOT be undone!
 
-Use !get to force pull an entry. This should typcially only be used for testing or for manually changing the discussion early. The original !get message will be deleted to hide this.
+Use !pull to force pull an entry. This should typcially only be used for testing or for manually changing the discussion early. The original !pull message will be deleted to hide this.
+
+Use !task to announce incomplete E-Board tasks. This command will automatically be called every {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change weekly reminders. Use !get_task_time to see what it is currently set to.
 
 Use !disable to turn off random selection. Every other bot feature will still be available. Use !enable to turn it back on, and !status to see current status.
 
@@ -171,7 +185,7 @@ async def delete(ctx, *, message):
 
 @bot.command()
 @commands.has_role("E-Board")
-async def interval(ctx):
+async def get_interval(ctx):
     global time
     await ctx.send(f"Current interval is {time / 24} day(s). Use !set [interval] to change this.")
 
@@ -247,33 +261,82 @@ async def announce(ctx, *, message):
     if channel:
         await channel.send(message)
 
-import asyncio
-from datetime import datetime, timezone
-import discord
+from tasks import get_tasks, get_pie, IDs
+import pytz
+async def run_tasks():
+    channel = bot.get_channel(EANNOUNCE)
+    e_tasks, pie = get_tasks()
+    if channel:
+        for role, task_list in e_tasks.items():
+            if not task_list: # Currently ignores member if no tasks
+                continue
+
+            mention = f"<@{IDs[role]}>"
+            lines = []
+            for task in task_list:
+                if task.due_date:
+                    lines.append(
+                        f"• **{task.title}** — Due: {task.due_date} — Status: {task.status}"
+                    )
+                else:
+                    lines.append(
+                        f"• **{task.title}** — Due: Weekly — Status: {task.status}"
+                    )
+            message_content = mention + "\n" + "\n".join(lines)
+            if pie[role] + len(task_list) >= 3:
+                pie_message = "🥧" + get_pie() + "🥧"
+                message_content += "\n" + pie_message
+            await channel.send(message_content)
 
 @bot.command()
 @commands.has_role("E-Board")
-async def schedule(ctx, date: str, time: str, *, message):
-    # "2026-02-25 18:30 Hi" for example
-    try:
-        target_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-        target_dt = target_dt.replace(tzinfo=ZoneInfo("America/New_York"))
-    except ValueError:
-        await ctx.send("Invalid format. Use: YYYY-MM-DD HH:MM")
+async def task(ctx):
+    await run_tasks()
+
+@tasks.loop(minutes=1)
+async def task_scheduler():
+    now = datetime.now(pytz.timezone("US/Eastern"))
+    if now.weekday() == task_day and now.hour == task_hour and now.minute == task_minute:
+        await run_tasks()
+
+@bot.command()
+@commands.has_role("E-Board")
+async def get_task_time(ctx):
+    minute_message = str(task_minute)
+    if task_minute < 10:
+        minute_message = "0" + minute_message
+    await ctx.send(f"Current task reminder time is set to {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change this.")
+
+@bot.command()
+@commands.has_role("E-Board")
+async def set_task_time(ctx, *, message):
+    import re
+
+    VALID_DAYS = {
+        "Monday", "Tuesday", "Wednesday",
+        "Thursday", "Friday", "Saturday", "Sunday"
+    }
+
+    parts = message.strip().split()
+    if len(parts) != 2:
+        await ctx.send("Format: !set_task_time [day] [24-hour time]")
         return
-    now = datetime.now(timezone.utc)
-    delay = (target_dt - now).total_seconds()
-    if delay <= 0:
-        await ctx.send("That time is in the past.")
+    day, time_str = parts
+    if day not in week2idx:
+        await ctx.send("Invalid weekday. Must be capitalized (e.g., Wednesday).")
+        return
+    match = re.fullmatch(r"([01]\d|2[0-3]):([0-5]\d)", time_str)
+    if not match:
+        await ctx.send("Time must be 24-hour HH:MM (e.g., 17:30).")
         return
     
-    await ctx.send("Event successfully scheduled")
-    await asyncio.sleep(delay)
-
-    channel = bot.get_channel(EANNOUNCE)
-    if channel:
-        await channel.send(message)
-
-
+    global task_day, task_hour, task_minute
+    task_day = week2idx[day]
+    task_hour = int(match.group(1))
+    task_minute = int(match.group(2))
+    minute_message = str(task_minute)
+    if task_minute < 10:
+        minute_message = "0" + minute_message
+    await ctx.send(f"Task reminder time set to {idx2week[task_day]} at {task_hour}:{minute_message}")
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
