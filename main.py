@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 init_db()
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
+
+# Discussion configurations
 time = 3 * 24
 CHANNEL = 1428598017656619100 # general chat
 ECHANNEL = 1434310637936447488 # eboard general chat
@@ -18,10 +20,14 @@ ANNOUNCE = 1434239578457509958 # announcement chat
 EANNOUNCE = 1434589025158824130 # eboard announcement chat
 ME = 699427677383294986 # Nick T. user ID
 online = False
-task_day = 2
-task_hour = 17
-task_minute = 0
 
+# Task reminder configurations
+task_day = 2 # 2 --> Wednesday
+task_hour = 17 # 5PM
+task_minute = 0
+task_enabled = False
+
+# Permissions and handlers
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
 intents.message_content = True
@@ -147,7 +153,7 @@ Use !delete [content] to remove an entry if there is a duplicate for example. Sp
 
 Use !pull to force pull an entry. This should typcially only be used for testing or for manually changing the discussion early. The original !pull message will be deleted to hide this.
 
-Use !task to announce incomplete E-Board tasks. This command will automatically be called every {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change weekly reminders. Use !get_task_time to see what it is currently set to.
+Use !task to announce incomplete E-Board tasks. This command will automatically be called every {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change weekly reminders. Use !get_task_time to see what it is currently set to. Use !disable_tasks to disable automatic reminders and !enable_tasks for the opposite.
 
 Use !disable to turn off random selection. Every other bot feature will still be available. Use !enable to turn it back on, and !status to see current status.
 
@@ -296,7 +302,7 @@ async def task(ctx):
 @tasks.loop(minutes=1)
 async def task_scheduler():
     now = datetime.now(pytz.timezone("US/Eastern"))
-    if now.weekday() == task_day and now.hour == task_hour and now.minute == task_minute:
+    if task_enabled and now.weekday() == task_day and now.hour == task_hour and now.minute == task_minute:
         await run_tasks()
 
 @bot.command()
@@ -305,7 +311,8 @@ async def get_task_time(ctx):
     minute_message = str(task_minute)
     if task_minute < 10:
         minute_message = "0" + minute_message
-    await ctx.send(f"Current task reminder time is set to {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change this.")
+    enabled_message = "enabled" if task_enabled else "disabled"
+    await ctx.send(f"Automatic reminders are currently {enabled_message}. Current task reminder time is set to {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change this.")
 
 @bot.command()
 @commands.has_role("E-Board")
@@ -338,5 +345,22 @@ async def set_task_time(ctx, *, message):
     if task_minute < 10:
         minute_message = "0" + minute_message
     await ctx.send(f"Task reminder time set to {idx2week[task_day]} at {task_hour}:{minute_message}")
+
+@bot.command()
+@commands.has_role("E-Board")
+async def enable_tasks(ctx):
+    global task_enabled 
+    task_enabled = True
+    minute_message = str(task_minute)
+    if task_minute < 10:
+        minute_message = "0" + minute_message
+    await ctx.send(f"Automatic task reminders are now enabled for {idx2week[task_day]} at {task_hour}:{minute_message}.")
+
+@bot.command()
+@commands.has_role("E-Board")
+async def disable_tasks(ctx):
+    global task_enabled 
+    task_enabled = False
+    await ctx.send(f"Automatic task remidners are now disabled.")
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
