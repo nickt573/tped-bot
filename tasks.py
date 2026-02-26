@@ -51,8 +51,7 @@ def get_tasks():
                     pie[k] = int(r)
                     if k == "PUBLIC RELATIONS 0":
                         pie["PUBLIC RELATIONS 1"] = int(r)
-
-            if role == "PUBLIC RELATIONS":
+            elif role == "PUBLIC RELATIONS":
                 specific_tasks_0= []
                 specific_tasks_1 = []
                 weekly_tasks = []

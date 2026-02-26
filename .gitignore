@@ -2,4 +2,5 @@ entries.db
 .env
 /__pycache__
 trim-sum-488518-f5-6cb113ea1c8b.json
-extra.txt   
+extra.txt
+discord.log   
