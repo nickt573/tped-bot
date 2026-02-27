@@ -153,6 +153,8 @@ Use !delete [content] to remove an entry if there is a duplicate for example. Sp
 
 Use !pull to force pull an entry. This should typcially only be used for testing or for manually changing the discussion early. The original !pull message will be deleted to hide this.
 
+Use !schedule YYYY-MM-DD HH:MM [message] with the time in 24-hour time to schedule a reminder message.
+
 Use !task to announce incomplete E-Board tasks. This command will automatically be called every {idx2week[task_day]} at {task_hour}:{minute_message}. Use !set_task_time [day] [24-hour time] to change weekly reminders. Use !get_task_time to see what it is currently set to. Use !disable_tasks to disable automatic reminders and !enable_tasks for the opposite.
 
 Use !disable to turn off random selection. Every other bot feature will still be available. Use !enable to turn it back on, and !status to see current status.
@@ -362,5 +364,33 @@ async def disable_tasks(ctx):
     global task_enabled 
     task_enabled = False
     await ctx.send(f"Automatic task remidners are now disabled.")
+
+import asyncio
+from datetime import datetime, timezone
+import discord
+
+
+@bot.command()
+@commands.has_role("E-Board")
+async def schedule(ctx, date: str, time: str, *, message):
+    # "2026-02-25 18:30 Hi" for example
+    try:
+        target_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        target_dt = target_dt.replace(tzinfo=ZoneInfo("America/New_York"))
+    except ValueError:
+        await ctx.send("Invalid format. Use: YYYY-MM-DD HH:MM")
+        return
+    now = datetime.now(timezone.utc)
+    delay = (target_dt - now).total_seconds()
+    if delay <= 0:
+        await ctx.send("That time is in the past.")
+        return
+    
+    await ctx.send("Event successfully scheduled")
+    await asyncio.sleep(delay)
+
+    channel = bot.get_channel(EANNOUNCE)
+    if channel:
+        await channel.send(message)
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
